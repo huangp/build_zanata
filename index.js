@@ -6,7 +6,7 @@ var util = require('./lib/util');
 var Questions = require('./lib/questions');
 
 var purposeEnum = constants.purposeEnum;
-var mvnBuildcmd = ['mvn'];
+var mvnBuildCmd = ['mvn'];
 var mvnCargoCmd = ['mvn'];
 
 function main() {
@@ -17,11 +17,11 @@ function main() {
         message: 'What do you want to do this time?',
         name: 'purpose',
         choices: [
-          {name: 'Just build the war (no functional test)', value: purposeEnum.build},
-          {name: 'Build the test war and run cargo wait for me', value: purposeEnum.cargoRun},
-          {name: 'I\'ve got the test war just run cargo wait for me', value: purposeEnum.cargoRunOnly},
-          {name: 'Run static analysis only', value: purposeEnum.staticAnalysisOnly},
-          {name: 'Run test(s)', value: purposeEnum.test}
+          {name: '[Build]           Just build the war (no functional test)', value: purposeEnum.build},
+          {name: '[Build and Cargo] Build the test war and run cargo wait for me', value: purposeEnum.cargoRun},
+          {name: '[Cargo]           I\'ve got the test war just run cargo wait for me', value: purposeEnum.cargoRunOnly},
+          {name: '[Static Analysis] Run static analysis only', value: purposeEnum.staticAnalysisOnly},
+          {name: '[Test]            Run test(s)', value: purposeEnum.test}
         ]
       }
     ], function(answers) {
@@ -34,7 +34,7 @@ function main() {
           inquirer.prompt(questions.buildQuestions, finalAnswerCallback);
           break;
         case purposeEnum.cargoRun:
-          inquirer.prompt(util.concatTwoArrays(questions.buildQuestions, questions.cargoQuestions), finalAnswerCallback);
+          inquirer.prompt(util.concatArrays(questions.buildQuestions, questions.cargoQuestions), finalAnswerCallback);
           break;
         case purposeEnum.cargoRunOnly:
           q = questions.cargoQuestions;
@@ -42,7 +42,7 @@ function main() {
           inquirer.prompt(q, finalAnswerCallback);
           break;
         case purposeEnum.test:
-          q = util.concatTwoArrays(questions.buildQuestions, questions.testQuestions);
+          q = util.concatArrays(questions.buildQuestions, questions.cargoQuestions, questions.testQuestions);
           inquirer.prompt(q, finalAnswerCallback);
           break;
         case purposeEnum.staticAnalysisOnly:
@@ -59,23 +59,23 @@ function constructMavenCommand(purpose, answers) {
   console.log('>> answers: %s', JSON.stringify(answers, null, "  "));
 
   if (answers.clean) {
-    buildMavenCommand(mvnBuildcmd, 'clean');
+    buildMavenCommand(mvnBuildCmd, 'clean');
     buildMavenCommand(mvnCargoCmd, 'clean');
   }
   if (answers.nogwt) {
-    addMavenArgument(mvnBuildcmd, 'nogwt');
+    addMavenArgument(mvnBuildCmd, 'nogwt');
   }
   if (answers.excludeFrontend) {
-    addMavenArgument(mvnBuildcmd, 'excludeFrontend');
+    addMavenArgument(mvnBuildCmd, 'excludeFrontend');
   }
   if (!answers.skipStaticAnalysis) {
-    addMavenArgument(mvnBuildcmd, 'staticAnalysis');
+    addMavenArgument(mvnBuildCmd, 'staticAnalysis');
   }
-  addMavenArgument(mvnBuildcmd, answers.gwtProfile);
+  addMavenArgument(mvnBuildCmd, answers.gwtProfile);
   if (purposeEnum.needCargo(purpose)) {
-    addMavenArgument(mvnBuildcmd, answers.appserver);
-    addExtractedArgumentFromAnswer(mvnBuildcmd, answers, 'cargo.installation');
-    addExtractedArgumentFromAnswer(mvnBuildcmd, answers, 'cargo.basename');
+    addMavenArgument(mvnBuildCmd, answers.appserver);
+    addExtractedArgumentFromAnswer(mvnBuildCmd, answers, 'cargo.installation');
+    addExtractedArgumentFromAnswer(mvnBuildCmd, answers, 'cargo.basename');
     addMavenArgument(mvnCargoCmd, answers.appserver);
     addExtractedArgumentFromAnswer(mvnCargoCmd, answers, 'cargo.installation');
     addExtractedArgumentFromAnswer(mvnCargoCmd, answers, 'cargo.basename');
@@ -86,40 +86,42 @@ function constructMavenCommand(purpose, answers) {
 
   if (answers.skipTest && answers.skipTest.length > 0) {
     answers.skipTest.forEach(function(value) {
-      addMavenArgument(mvnBuildcmd, value);
+      addMavenArgument(mvnBuildCmd, value);
     });
-
-    if (answers.skipTest.length == 3) {
-      // skip all tests
-      mvnBuildcmd.push('package');
-    } else {
-      mvnBuildcmd.push('verify');
-    }
+  }
+  if (answers.skipTest && answers.skipTest.length == 3) {
+    // skip all tests
+    mvnBuildCmd.push('package');
+  } else {
+    mvnBuildCmd.push('verify');
   }
 
   mvnCargoCmd.push('-pl functional-test package cargo:run');
 
   switch(purpose) {
     case purposeEnum.cargoRun:
-      mvnBuildcmd.push('-pl zanata-test-war -am');
-      mvnBuildcmd.push('&& ');
-      result = mvnBuildcmd.join(' ') + mvnCargoCmd.join(' ');
+      mvnBuildCmd.push('-pl zanata-test-war -am');
+      mvnBuildCmd.push('&& ');
+      result = mvnBuildCmd.join(' ') + mvnCargoCmd.join(' ');
       break;
     case purposeEnum.build:
-      mvnBuildcmd.push('-pl zanata-test-war -am');
-      result = mvnBuildcmd.join(' ');
+      mvnBuildCmd.push('-pl zanata-test-war -am');
+      result = mvnBuildCmd.join(' ');
       break;
     case purposeEnum.cargoRunOnly:
       result = mvnCargoCmd.join(' ');
       break;
     case purposeEnum.test:
       if (!util.needToRunFunctionalTest(answers)) {
-        mvnBuildcmd.push('-pl zanata-test-war -am');
+        mvnBuildCmd.push('-pl zanata-test-war -am');
       }
       if (util.needToRunIntegrationTest(answers) && answers.itCase) {
-
+        mvnBuildCmd.push('-Dit.test="' + answers.itCase + '"');
       }
-      result = mvnBuildcmd.join(' ');
+      if (util.needToRunFunctionalTest(answers) && answers.functionalTestPattern) {
+        mvnBuildCmd.push('-Dinclude.test.patterns="' + answers.functionalTestPattern + '"');
+      }
+      result = mvnBuildCmd.join(' ');
       break;
   }
 
