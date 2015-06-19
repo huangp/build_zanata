@@ -3,7 +3,7 @@
 var inquirer = require('inquirer');
 var constants = require('./lib/constants');
 var util = require('./lib/util');
-var Questions = require('./lib/questions');
+var Questions = require('./lib/Questions');
 
 var purposeEnum = constants.purposeEnum;
 var mvnBuildCmd = ['mvn'];
@@ -70,6 +70,9 @@ function constructMavenCommand(purpose, answers) {
   }
   if (!answers.skipStaticAnalysis) {
     addMavenArgument(mvnBuildCmd, 'staticAnalysis');
+  }
+  if (answers.exploded) {
+    mvnBuildCmd.push('-Denv=dev');
   }
   addMavenArgument(mvnBuildCmd, answers.gwtProfile);
   if (purposeEnum.needCargo(purpose)) {
