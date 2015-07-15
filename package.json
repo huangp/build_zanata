@@ -23,6 +23,7 @@
     "build-zanata": "./bin/build_zanata"
   },
   "dependencies": {
-    "inquirer": "~0.8.5"
+    "inquirer": "~0.8.5",
+    "stream-splitter": "~0.3.2"
   }
 }

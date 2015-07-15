@@ -6,30 +6,53 @@ var util = require('./lib/util');
 var Questions = require('./lib/Questions');
 
 var purposeEnum = constants.purposeEnum;
+var finalResultEnum = constants.finalResultEnum;
 var mvnBuildCmd = ['mvn'];
 var mvnCargoCmd = ['mvn'];
 
+var history;
+
 function main() {
+  util.readFromHistory(function (data) {
+    if (data) {
+      history = data;
+    }
+    ask();
+  });
+
+}
+
+function ask() {
+  var historyChoice = {name: '[History]         Pick from history', value: purposeEnum.history};
+  var choices = [
+    {name: '[Build]           Just build the war (no functional test)', value: purposeEnum.build},
+    {name: '[Build and Cargo] Build the test war and run cargo wait for me', value: purposeEnum.cargoRun},
+    {name: '[Cargo]           I\'ve got the test war just run cargo wait for me', value: purposeEnum.cargoRunOnly},
+    {name: '[Static Analysis] Run static analysis only', value: purposeEnum.staticAnalysisOnly},
+    {name: '[Test]            Run test(s)', value: purposeEnum.test}
+  ];
+
+  if (history) {
+    choices.push(historyChoice);
+  }
+
   inquirer.prompt(
     [
       {
         type: "list",
         message: 'What do you want to do this time?',
         name: 'purpose',
-        choices: [
-          {name: '[Build]           Just build the war (no functional test)', value: purposeEnum.build},
-          {name: '[Build and Cargo] Build the test war and run cargo wait for me', value: purposeEnum.cargoRun},
-          {name: '[Cargo]           I\'ve got the test war just run cargo wait for me', value: purposeEnum.cargoRunOnly},
-          {name: '[Static Analysis] Run static analysis only', value: purposeEnum.staticAnalysisOnly},
-          {name: '[Test]            Run test(s)', value: purposeEnum.test}
-        ]
+        choices: choices
       }
     ], function(answers) {
       var purpose = answers.purpose;
       var questions = new Questions(purpose);
-      var finalAnswerCallback = constructMavenCommand.bind(this, purpose);
+      var finalAnswerCallback = constructMavenCommand.bind(this, purpose, questions.finalResultQuestions);
       var q;
       switch (purpose) {
+        case purposeEnum.history:
+          inquirer.prompt(questions.historyQuestions(history), finalAnswerCallback);
+          break;
         case purposeEnum.build:
           inquirer.prompt(questions.buildQuestions, finalAnswerCallback);
           break;
@@ -46,16 +69,25 @@ function main() {
           inquirer.prompt(q, finalAnswerCallback);
           break;
         case purposeEnum.staticAnalysisOnly:
-          console.log('mvn compile -DstaticAnalysis -Dnogwt');
+          inquirer.prompt([], finalAnswerCallback);
+        //  console.log('mvn compile -DstaticAnalysis -Dnogwt');
       }
     }
   );
 }
 
 
-function constructMavenCommand(purpose, answers) {
+function constructMavenCommand(purpose, finalResultQuestions, answers) {
   var result;
   console.log('>> purpose: %s', purpose);
+  // handle special history entry case. Ugly...
+  if (answers.historyEntry) {
+    answers = history[answers.historyEntry];
+    console.log('>> answers: %s', JSON.stringify(answers, null, "  "));
+    console.log(answers.mvn);
+    inquirer.prompt(finalResultQuestions, finalResult.bind(this, answers, answers.mvn));
+    return;
+  }
   console.log('>> answers: %s', JSON.stringify(answers, null, "  "));
 
   if (answers.clean) {
@@ -76,16 +108,14 @@ function constructMavenCommand(purpose, answers) {
   }
   addMavenArgument(mvnBuildCmd, answers.gwtProfile);
   if (purposeEnum.needCargo(purpose)) {
-    addMavenArgument(mvnBuildCmd, answers.appserver);
-    addExtractedArgumentFromAnswer(mvnBuildCmd, answers, 'cargo.installation');
-    addExtractedArgumentFromAnswer(mvnBuildCmd, answers, 'cargo.basename');
-    addMavenArgument(mvnCargoCmd, answers.appserver);
-    addExtractedArgumentFromAnswer(mvnCargoCmd, answers, 'cargo.installation');
-    addExtractedArgumentFromAnswer(mvnCargoCmd, answers, 'cargo.basename');
-    addExtractedArgumentFromAnswer(mvnCargoCmd, answers, 'mysql.port');
-  }
+    // build command
+    addExtractedArgumentFromAnswer(mvnBuildCmd, answers, 'appserver');
 
-  console.log('>>>> the generated the maven command is:');
+    // cargo command
+    addExtractedArgumentFromAnswer(mvnCargoCmd, answers, 'appserver');
+    addExtractedArgumentFromAnswer(mvnCargoCmd, answers, 'mysql.port');
+    addExtractedArgumentFromAnswer(mvnCargoCmd, answers, 'webdriver.type');
+  }
 
   if (answers.skipTest && answers.skipTest.length > 0) {
     answers.skipTest.forEach(function(value) {
@@ -126,10 +156,23 @@ function constructMavenCommand(purpose, answers) {
       }
       result = mvnBuildCmd.join(' ');
       break;
+    case purposeEnum.staticAnalysisOnly:
+      result = 'mvn compile -DstaticAnalysis -Dnogwt';
+      break;
   }
 
-  console.log();
+  console.log('>>>> the generated the maven command is:');
   console.log(result);
+  inquirer.prompt(finalResultQuestions, finalResult.bind(this, answers, result));
+}
+
+function finalResult(buildAnswers, mvnCmd, finalAnswers) {
+  if (finalAnswers.saveName) {
+    util.saveAs(finalAnswers.saveName, buildAnswers, mvnCmd);
+  }
+  if (finalResultEnum.needToRun(finalAnswers.finalResult)) {
+    util.runCommand(mvnCmd, buildAnswers.eap6URL);
+  }
 }
 
 function buildMavenCommand(mvnCmdArray) {
