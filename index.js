@@ -23,7 +23,8 @@ function main() {
 }
 
 function ask() {
-  var historyChoice = {name: '[History]         Pick from history', value: purposeEnum.history};
+  var historyChoice =
+    {name: '[History]         Pick from history', value: purposeEnum.history};
   var choices = [
     {name: '[Build]           Just build the war (no functional test)', value: purposeEnum.build},
     {name: '[Build and Cargo] Build the test war and run cargo wait for me', value: purposeEnum.cargoRun},
@@ -33,7 +34,7 @@ function ask() {
   ];
 
   if (history) {
-    choices.push(historyChoice);
+    choices.unshift(historyChoice);
   }
 
   inquirer.prompt(

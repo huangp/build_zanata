@@ -28,3 +28,6 @@ node_modules
 
 # our bin folder is part of the source
 !bin/
+
+# idea files
+.idea/
