@@ -104,6 +104,9 @@ function constructMavenCommand(purpose, finalResultQuestions, answers) {
   if (!answers.skipStaticAnalysis) {
     addMavenArgument(mvnBuildCmd, 'staticAnalysis');
   }
+  if (answers.skipAnimalSniffer) {
+    addMavenArgument(mvnBuildCmd, 'animal.sniffer.skip');
+  }
   if (answers.exploded) {
     mvnBuildCmd.push('-Denv=dev');
   }
@@ -176,6 +179,10 @@ function finalResult(buildAnswers, mvnCmd, finalAnswers) {
   }
 }
 
+/**
+ * extra arguments will be pushed to mvnCmdArray as is.
+ * @param mvnCmdArray mvn arguments array
+ */
 function buildMavenCommand(mvnCmdArray) {
   var args = Array.prototype.slice.call(arguments).slice(1);
   args.forEach(function(arg) {
@@ -183,6 +190,10 @@ function buildMavenCommand(mvnCmdArray) {
   });
 }
 
+/**
+ * extra arguments will be pushed to mvnCmdArray as -Darg.
+ * @param mvnCmdArray mvn arguments array
+ */
 function addMavenArgument(mvnCmdArray) {
   var args = Array.prototype.slice.call(arguments).slice(1);
   args.forEach(function(arg) {
@@ -192,6 +203,12 @@ function addMavenArgument(mvnCmdArray) {
   });
 }
 
+/**
+ * will push -Dkey=answer[key] as maven argument to mvnCmdArray.
+ * @param mvnCmdArray mvn arguments array
+ * @param answers answers
+ * @param key
+ */
 function addExtractedArgumentFromAnswer(mvnCmdArray, answers, key) {
   if (answers[key]) {
     mvnCmdArray.push('-D' + key + '=' + answers[key]);
