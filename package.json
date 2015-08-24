@@ -1,6 +1,6 @@
 {
   "name": "build_zanata",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Interactive CLI for constructing maven commands to build Zanata server",
   "main": "index.js",
   "scripts": {
